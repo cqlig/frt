@@ -12,21 +12,20 @@ const TicketViewer = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    const fetchTicket = async () => {
+      try {
+        setLoading(true);
+        const response = await axios.get(`/api/tickets/${id}`);
+        setTicket(response.data);
+      } catch (err) {
+        setError('Ticket no encontrado');
+        console.error('Error fetching ticket:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchTicket();
-  }, [id, fetchTicket]);
-
-  const fetchTicket = async () => {
-    try {
-      setLoading(true);
-      const response = await axios.get(`/api/tickets/${id}`);
-      setTicket(response.data);
-    } catch (err) {
-      setError('Ticket no encontrado');
-      console.error('Error fetching ticket:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [id]);
 
 
 
