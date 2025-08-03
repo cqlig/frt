@@ -13,7 +13,7 @@ const TicketViewer = () => {
 
   useEffect(() => {
     fetchTicket();
-  }, [id]);
+  }, [id, fetchTicket]);
 
   const fetchTicket = async () => {
     try {

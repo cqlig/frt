@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import QRCode from 'qrcode.react';
 import html2canvas from 'html2canvas';
