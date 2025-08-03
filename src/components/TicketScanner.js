@@ -26,15 +26,27 @@ const TicketScanner = () => {
             // 2 = RUNNING, 3 = PAUSED
             if (state === 2 || state === 3) {
               if (html5QrCodeRef.current.stop && typeof html5QrCodeRef.current.stop === 'function') {
-                html5QrCodeRef.current.stop().catch(() => {});
+                const stopResult = html5QrCodeRef.current.stop();
+                if (stopResult && typeof stopResult.then === 'function') {
+                  stopResult.catch(() => {});
+                }
               }
             }
           } else {
+            if (html5QrCodeRef.current.stop && typeof html5QrCodeRef.current.stop === 'function') {
+              const stopResult = html5QrCodeRef.current.stop();
+              if (stopResult && typeof stopResult.then === 'function') {
+                stopResult.catch(() => {});
+              }
+            }
             html5QrCodeRef.current.stop().catch(() => {});
           }
         } catch (e) {}
         if (html5QrCodeRef.current.clear && typeof html5QrCodeRef.current.clear === 'function') {
-          html5QrCodeRef.current.clear().catch(() => {});
+          const clearResult = html5QrCodeRef.current.clear();
+          if (clearResult && typeof clearResult.catch === 'function') {
+            clearResult.catch(() => {});
+          }
         }
         html5QrCodeRef.current = null;
       }
