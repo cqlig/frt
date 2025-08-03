@@ -25,13 +25,17 @@ const TicketScanner = () => {
             const state = html5QrCodeRef.current.getState();
             // 2 = RUNNING, 3 = PAUSED
             if (state === 2 || state === 3) {
-              html5QrCodeRef.current.stop().catch(() => {});
+              if (html5QrCodeRef.current.stop && typeof html5QrCodeRef.current.stop === 'function') {
+                html5QrCodeRef.current.stop().catch(() => {});
+              }
             }
           } else {
             html5QrCodeRef.current.stop().catch(() => {});
           }
         } catch (e) {}
-        html5QrCodeRef.current.clear().catch(() => {});
+        if (html5QrCodeRef.current.clear && typeof html5QrCodeRef.current.clear === 'function') {
+          html5QrCodeRef.current.clear().catch(() => {});
+        }
         html5QrCodeRef.current = null;
       }
       return;
