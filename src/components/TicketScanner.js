@@ -19,7 +19,18 @@ const TicketScanner = () => {
   React.useEffect(() => {
     if (!isCameraActive) {
       if (html5QrCodeRef.current) {
-        html5QrCodeRef.current.stop().catch(() => {});
+        // Solo detener si está corriendo
+        try {
+          if (typeof html5QrCodeRef.current.getState === 'function') {
+            const state = html5QrCodeRef.current.getState();
+            // 2 = RUNNING, 3 = PAUSED
+            if (state === 2 || state === 3) {
+              html5QrCodeRef.current.stop().catch(() => {});
+            }
+          } else {
+            html5QrCodeRef.current.stop().catch(() => {});
+          }
+        } catch (e) {}
         html5QrCodeRef.current.clear().catch(() => {});
         html5QrCodeRef.current = null;
       }
