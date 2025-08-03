@@ -26,20 +26,19 @@ const TicketScanner = () => {
             // 2 = RUNNING, 3 = PAUSED
             if (state === 2 || state === 3) {
               if (html5QrCodeRef.current.stop && typeof html5QrCodeRef.current.stop === 'function') {
-                const stopResult = html5QrCodeRef.current.stop();
-                if (stopResult && typeof stopResult.then === 'function') {
-                  stopResult.catch(() => {});
+                try {
+                  const stopResult = html5QrCodeRef.current.stop();
+                  if (stopResult && typeof stopResult.then === 'function') {
+                    stopResult.catch(() => {});
+                  }
+                } catch (e) {
+                  // Silenciar error
                 }
               }
             }
           } else {
-            if (html5QrCodeRef.current.stop && typeof html5QrCodeRef.current.stop === 'function') {
-              const stopResult = html5QrCodeRef.current.stop();
-              if (stopResult && typeof stopResult.then === 'function') {
-                stopResult.catch(() => {});
-              }
-            }
-            html5QrCodeRef.current.stop().catch(() => {});
+            // No intentes llamar a stop si no hay getState
+            // y nunca llames dos veces
           }
         } catch (e) {}
         if (html5QrCodeRef.current.clear && typeof html5QrCodeRef.current.clear === 'function') {
@@ -76,6 +75,10 @@ const TicketScanner = () => {
     ).catch((err) => {
       setError('No se pudo acceder a la cámara: ' + err);
       setIsCameraActive(false);
+      // Fallback visual: limpia el contenedor si existe
+      const qrDiv = document.getElementById('qr-reader');
+      if (qrDiv) qrDiv.innerHTML = '<div style="color:red;text-align:center;padding:20px;">No se pudo acceder a la cámara.<br>Verifica permisos o usa otro navegador.</div>';
+
     });
     return () => {
       if (html5QrCode) {
