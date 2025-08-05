@@ -158,11 +158,121 @@ const TicketViewer = () => {
               <strong>Fecha de Creación:</strong>
               <p>{new Date(ticket.created_at).toLocaleString('es-ES')}</p>
             </div>
+            {typeof ticket.quantity !== 'undefined' && (
+              <div>
+                <strong>Cantidad de Personas:</strong>
+                <p>{ticket.quantity} personas</p>
+              </div>
+            )}
+            {typeof ticket.price !== 'undefined' && (
+              <div>
+                <strong>Precio Unitario:</strong>
+                <p>${ticket.price.toLocaleString()}</p>
+              </div>
+            )}
+            {typeof ticket.total !== 'undefined' && (
+              <div>
+                <strong>Total Pagado:</strong>
+                <p style={{fontWeight: 'bold', color: '#38a169', fontSize: '1.2rem'}}>
+                  ${ticket.total.toLocaleString()}
+                </p>
+                <p style={{fontSize: '0.9rem', color: '#718096', fontStyle: 'italic'}}>
+                  ({ticket.quantity} × ${ticket.price.toLocaleString()} = ${ticket.total.toLocaleString()})
+                </p>
+              </div>
+            )}
             <div>
               <strong>Estado:</strong>
               <span className={`status-badge ${getStatusBadgeClass(ticket.status)}`}>
                 {ticket.status}
               </span>
+            </div>
+          </div>
+
+          <div className="qr-list-container" style={{marginTop: '30px'}}>
+            <h3 style={{marginBottom: 10, color: '#007bff'}}>QR Principal con Múltiples Usos</h3>
+            <div style={{marginBottom: 10, fontWeight: 'bold', color: '#38a169'}}>
+              Usos restantes: {ticket.qr?.uses_remaining || 0} / {ticket.qr?.total_uses || 0}
+            </div>
+            <p style={{fontSize: '0.9rem', color: '#718096', marginBottom: '15px'}}>
+              💡 Este QR puede ser usado por todas las personas. Cada escaneo consume un uso.
+            </p>
+            <div style={{display: 'flex', justifyContent: 'center'}}>
+              <div style={{
+                border: '2px solid #eee', 
+                borderRadius: 15, 
+                padding: 20, 
+                background: ticket.qr?.uses_remaining > 0 ? '#e6ffe6' : '#ffd6d6', 
+                textAlign: 'center', 
+                minWidth: 250,
+                position: 'relative'
+              }}>
+                <div style={{
+                  position: 'absolute',
+                  top: '-15px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: ticket.qr?.uses_remaining > 0 ? '#38a169' : '#e53e3e',
+                  color: 'white',
+                  padding: '6px 16px',
+                  borderRadius: '15px',
+                  fontSize: '0.9rem',
+                  fontWeight: 'bold'
+                }}>
+                  QR Principal
+                </div>
+                <QRCode value={ticket.qr?.qr_id} size={180} level="H" includeMargin={true} />
+                <div style={{margin: '15px 0 8px', fontSize: '1rem', fontWeight: 'bold'}}>
+                  {ticket.qr?.uses_remaining > 0 ? 
+                    <span style={{color:'#38a169'}}>✅ {ticket.qr.uses_remaining} usos disponibles</span> : 
+                    <span style={{color:'#e53e3e'}}>❌ Sin usos disponibles</span>
+                  }
+                </div>
+                <div style={{fontSize: '0.9rem', color: '#718096', marginBottom: '15px'}}>
+                  {ticket.qr?.uses_consumed || 0} usos consumidos de {ticket.qr?.total_uses || 0}
+                </div>
+                <button onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = ticket.qr?.qr_image;
+                  link.download = `QR-Principal-${ticket.buyer_name.replace(/\s+/g,'_')}-${ticket.event_name.replace(/\s+/g,'_')}.png`;
+                  link.click();
+                }} style={{
+                  marginTop: 8, 
+                  fontSize: '1rem', 
+                  padding: '8px 16px', 
+                  borderRadius: 8, 
+                  background:'#007bff', 
+                  color:'#fff', 
+                  border:'none', 
+                  cursor:'pointer', 
+                  marginRight: 8
+                }}>
+                  📱 Descargar QR
+                </button>
+                {ticket.qr?.uses_remaining > 0 && (
+                  <button onClick={async () => {
+                    try {
+                      await axios.post('/api/qrs/redeem', { qr_id: ticket.qr.qr_id });
+                      // Refrescar ticket
+                      const response = await axios.get(`/api/tickets/${ticket.id}`);
+                      setTicket(response.data);
+                    } catch (err) {
+                      alert('Error al canjear QR');
+                    }
+                  }} style={{
+                    marginTop: 8, 
+                    fontSize: '1rem', 
+                    padding: '8px 16px', 
+                    borderRadius: 8, 
+                    background:'#38a169', 
+                    color:'#fff', 
+                    border:'none', 
+                    cursor:'pointer'
+                  }}>
+                    ✅ Canjear 1 Uso
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

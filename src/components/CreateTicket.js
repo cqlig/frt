@@ -9,34 +9,67 @@ const CreateTicket = () => {
   const [formData, setFormData] = useState({
     buyer_name: '',
     buyer_email: '',
-    event_name: 'La asunción de Figuras'
+    event_name: 'La asunción de Figuras',
+    quantity: 1,
+    price: 0
   });
   const [loading, setLoading] = useState(false);
   const [ticket, setTicket] = useState(null);
   const [error, setError] = useState('');
+  const [total, setTotal] = useState(0);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    console.log('🔄 Cambiando campo:', name, 'valor:', value);
+    
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        [name]: name === 'quantity' || name === 'price' ? Number(value) : value
+      };
+      if (name === 'quantity' || name === 'price') {
+        const newTotal = (updated.quantity || 0) * (updated.price || 0);
+        console.log('💰 Calculando total:', updated.quantity, '×', updated.price, '=', newTotal);
+        setTotal(newTotal);
+      }
+      return updated;
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validación adicional
+    if (formData.price <= 0) {
+      setError('El precio debe ser mayor a 0');
+      return;
+    }
+    if (formData.quantity <= 0) {
+      setError('La cantidad debe ser mayor a 0');
+      return;
+    }
+    
     setLoading(true);
     setError('');
 
     try {
-      const response = await axios.post('/api/tickets', formData);
+      const sendData = { ...formData, total: (formData.quantity || 0) * (formData.price || 0) };
+      console.log('📤 Enviando datos al servidor:', sendData);
+      
+      const response = await axios.post('/api/tickets', sendData);
+      console.log('📥 Respuesta del servidor:', response.data);
+      
       setTicket(response.data);
       setFormData({
         buyer_name: '',
         buyer_email: '',
-        event_name: ''
+        event_name: 'La asunción de Figuras',
+        quantity: 1,
+        price: 0
       });
+      setTotal(0);
     } catch (err) {
+      console.error('❌ Error al crear ticket:', err.response?.data);
       setError(err.response?.data?.error || 'Error al crear el ticket');
     } finally {
       setLoading(false);
@@ -150,7 +183,7 @@ const CreateTicket = () => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="event_name">Nombre del Evento *</label>
+            <label htmlFor="event_name" style={{fontWeight: 'bold', color: '#007bff', fontSize: '1.1rem'}}>🎉 Nombre del Evento *</label>
             <input
               type="text"
               id="event_name"
@@ -162,13 +195,76 @@ const CreateTicket = () => {
             />
           </div>
 
+          <div className="form-group">
+            <label htmlFor="quantity">Cantidad de Personas *</label>
+            <input
+              type="number"
+              id="quantity"
+              name="quantity"
+              min="1"
+              value={formData.quantity}
+              onChange={handleInputChange}
+              required
+            />
+            <small style={{color:'#555', fontSize:'0.9rem'}}>
+              💡 Se crearán {formData.quantity} QRs individuales, uno para cada persona
+            </small>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="price">Precio por Entrada (pesos) *</label>
+            <input
+              type="number"
+              id="price"
+              name="price"
+              min="1"
+              value={formData.price}
+              onChange={handleInputChange}
+              required
+            />
+            <small style={{color:'#555', fontSize:'0.9rem'}}>
+              💡 El precio debe ser mayor a 0
+            </small>
+          </div>
+
+          <div className="form-group">
+            <label style={{fontWeight: 'bold', fontSize: '1.1rem'}}>💰 Total a Pagar:</label>
+            <input
+              type="text"
+              value={`$${total.toLocaleString()}`}
+              readOnly
+              style={{ 
+                backgroundColor: '#ffe066', 
+                color: '#1a202c', 
+                fontWeight: 'bold', 
+                fontSize: '1.5rem', 
+                border: '2px solid #ffd700', 
+                borderRadius: '8px', 
+                boxShadow: '0 2px 8px #ffd70044',
+                textAlign: 'center',
+                letterSpacing: '1px',
+                marginTop: '6px',
+                marginBottom: '2px',
+                width: '100%'
+              }}
+            />
+            <small style={{color:'#555', fontSize:'0.98rem'}}>
+              {formData.quantity} personas × ${formData.price.toLocaleString()} = ${total.toLocaleString()}
+            </small>
+          </div>
+
           <button 
             type="submit" 
             className="submit-button"
-            disabled={loading}
+            disabled={loading || formData.price <= 0 || formData.quantity <= 0}
           >
             {loading ? 'Creando...' : 'Crear Entrada'}
           </button>
+          {(formData.price <= 0 || formData.quantity <= 0) && (
+            <small style={{color:'#e53e3e', fontSize:'0.9rem', display: 'block', marginTop: '10px'}}>
+              ⚠️ El precio y la cantidad deben ser mayores a 0
+            </small>
+          )}
         </form>
 
         {error && (
@@ -205,6 +301,26 @@ const CreateTicket = () => {
                 <strong>Fecha de Creación:</strong>
                 <p>{new Date(ticket.created_at).toLocaleString('es-ES')}</p>
               </div>
+              {ticket.quantity && (
+                <div>
+                  <strong>Cantidad de Personas:</strong>
+                  <p>{ticket.quantity} personas</p>
+                </div>
+              )}
+              {ticket.price && (
+                <div>
+                  <strong>Precio Unitario:</strong>
+                  <p>${ticket.price.toLocaleString()}</p>
+                </div>
+              )}
+              {ticket.total && (
+                <div>
+                  <strong>Total Pagado:</strong>
+                  <p style={{fontWeight: 'bold', color: '#38a169', fontSize: '1.1rem'}}>
+                    ${ticket.total.toLocaleString()}
+                  </p>
+                </div>
+              )}
               <div>
                 <strong>Estado:</strong>
                 <span className={`status-badge status-valid`}>
@@ -214,12 +330,52 @@ const CreateTicket = () => {
             </div>
 
             <div className="qr-container">
-              <QRCode 
-                value={ticket.id} 
-                size={200}
-                level="H"
-                includeMargin={true}
-              />
+              <h4 style={{marginBottom: '15px', color: '#007bff', textAlign: 'center'}}>
+                📱 QR Principal Generado
+              </h4>
+              <p style={{textAlign: 'center', marginBottom: '20px', fontSize: '0.9rem', color: '#718096'}}>
+                Se ha creado 1 QR principal con {ticket.qr?.total_uses || 0} usos disponibles.
+                <br />
+                Cada persona puede usar el mismo QR al llegar al evento.
+              </p>
+              <div style={{display: 'flex', justifyContent: 'center'}}>
+                <div style={{
+                  border: '2px solid #ddd',
+                  borderRadius: '12px',
+                  padding: '20px',
+                  textAlign: 'center',
+                  background: '#f8f9fa',
+                  maxWidth: '300px'
+                }}>
+                  <div style={{
+                    background: '#007bff',
+                    color: 'white',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
+                    marginBottom: '15px',
+                    fontWeight: 'bold'
+                  }}>
+                    QR Principal - {ticket.qr?.total_uses || 0} Usos
+                  </div>
+                  <QRCode 
+                    value={ticket.qr?.qr_id} 
+                    size={200}
+                    level="H"
+                    includeMargin={true}
+                  />
+                  <div style={{
+                    marginTop: '15px',
+                    padding: '10px',
+                    background: '#e8f5e8',
+                    borderRadius: '8px',
+                    fontSize: '0.9rem',
+                    color: '#2d5a2d'
+                  }}>
+                    ✅ {ticket.qr?.uses_remaining || 0} usos disponibles
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

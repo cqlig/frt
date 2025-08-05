@@ -19,35 +19,38 @@ const TicketScanner = () => {
   React.useEffect(() => {
     if (!isCameraActive) {
       if (html5QrCodeRef.current) {
-        // Solo detener si está corriendo
-        try {
-          if (typeof html5QrCodeRef.current.getState === 'function') {
-            const state = html5QrCodeRef.current.getState();
-            // 2 = RUNNING, 3 = PAUSED
-            if (state === 2 || state === 3) {
-              if (html5QrCodeRef.current.stop && typeof html5QrCodeRef.current.stop === 'function') {
-                try {
-                  const stopResult = html5QrCodeRef.current.stop();
-                  if (stopResult && typeof stopResult.then === 'function') {
-                    stopResult.catch(() => {});
+        // Limpiar el escáner de forma segura
+        const cleanup = async () => {
+          try {
+            if (typeof html5QrCodeRef.current.getState === 'function') {
+              const state = html5QrCodeRef.current.getState();
+              // 2 = RUNNING, 3 = PAUSED
+              if (state === 2 || state === 3) {
+                if (html5QrCodeRef.current.stop && typeof html5QrCodeRef.current.stop === 'function') {
+                  try {
+                    await html5QrCodeRef.current.stop();
+                  } catch (e) {
+                    // Silenciar error - scanner ya detenido
                   }
-                } catch (e) {
-                  // Silenciar error
                 }
               }
             }
-          } else {
-            // No intentes llamar a stop si no hay getState
-            // y nunca llames dos veces
+          } catch (e) {
+            // Silenciar error - scanner no está corriendo
           }
-        } catch (e) {}
-        if (html5QrCodeRef.current.clear && typeof html5QrCodeRef.current.clear === 'function') {
-          const clearResult = html5QrCodeRef.current.clear();
-          if (clearResult && typeof clearResult.catch === 'function') {
-            clearResult.catch(() => {});
+          
+          try {
+            if (html5QrCodeRef.current.clear && typeof html5QrCodeRef.current.clear === 'function') {
+              await html5QrCodeRef.current.clear();
+            }
+          } catch (e) {
+            // Silenciar error de limpieza
           }
-        }
-        html5QrCodeRef.current = null;
+          
+          html5QrCodeRef.current = null;
+        };
+        
+        cleanup();
       }
       return;
     }
@@ -82,8 +85,13 @@ const TicketScanner = () => {
     });
     return () => {
       if (html5QrCode) {
-        html5QrCode.stop().catch(() => {});
-        html5QrCode.clear().catch(() => {});
+        try {
+          html5QrCode.stop().catch(() => {});
+          html5QrCode.clear().catch(() => {});
+        } catch (e) {
+          // Silenciar errores de limpieza
+          console.log('Error al limpiar scanner:', e.message);
+        }
       }
       html5QrCodeRef.current = null;
     };
@@ -109,23 +117,34 @@ const TicketScanner = () => {
     setError('');
 
     try {
-      const response = await axios.post('/api/tickets/redeem', {
-        ticket_id: ticketId.trim()
-      });
+      let response;
+      
+      // Si es un QR individual
+      if (result.qr_id) {
+        response = await axios.post('/api/qrs/redeem', {
+          qr_id: result.qr_id
+        });
+      } else {
+        // Si es un ticket normal
+        response = await axios.post('/api/tickets/redeem', {
+          ticket_id: ticketId.trim()
+        });
+      }
 
       // Update the result to show as redeemed
       setResult({
         ...result,
-        ticket: {
+        ticket: result.ticket ? {
           ...result.ticket,
           status: 'Canjeado'
-        },
+        } : null,
         already_redeemed: true,
-        message: response.data.message || '🎉 ¡Ticket canjeado exitosamente! ¡Que disfrute el evento!',
-        success: true
+        message: response.data.message || '🎉 ¡Código canjeado exitosamente! ¡Que disfrute el evento!',
+        success: true,
+        uses_remaining: response.data.uses_remaining
       });
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al canjear el ticket');
+      setError(err.response?.data?.error || 'Error al canjear el código');
     } finally {
       setLoading(false);
     }
@@ -206,20 +225,53 @@ const TicketScanner = () => {
   };
 
   // Función para validar ticket (extraída de handleValidate)
-  const validateTicket = async (ticketIdToValidate) => {
+  const validateTicket = async (codeToValidate) => {
     setLoading(true);
     setError('');
     setResult(null);
 
     try {
-      const response = await axios.post('/api/tickets/validate', {
-        ticket_id: ticketIdToValidate.trim()
-      });
-
-      setResult(response.data);
+      // Primero intentamos validar como QR individual
+      try {
+        const qrResponse = await axios.post('/api/qrs/validate', {
+          qr_id: codeToValidate.trim()
+        });
+        
+        if (qrResponse.data.valid) {
+          setResult({
+            valid: true,
+            message: 'QR válido encontrado',
+            qr_id: codeToValidate.trim(),
+            ticket: qrResponse.data.ticket,
+            already_redeemed: false
+          });
+        } else {
+          setResult({
+            valid: false,
+            message: qrResponse.data.message,
+            qr_id: codeToValidate.trim(),
+            already_redeemed: true
+          });
+        }
+        setLoading(false);
+        return;
+      } catch (qrErr) {
+        // Si no es un QR válido, intentamos como ticket normal
+        try {
+          const response = await axios.post('/api/tickets/validate', {
+            ticket_id: codeToValidate.trim()
+          });
+          setResult(response.data);
+          setLoading(false);
+          return;
+        } catch (ticketErr) {
+          setError('Código no válido. Verifica que el QR o ID del ticket sea correcto.');
+          setLoading(false);
+          return;
+        }
+      }
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al validar el ticket');
-    } finally {
+      setError('Error inesperado al validar el código');
       setLoading(false);
     }
   };
@@ -266,13 +318,18 @@ const TicketScanner = () => {
         {/* Método 2: Escanear con cámara */}
         <div className="scanner-method" style={{ background: 'rgba(255, 255, 255, 0.1)', padding: '24px', borderRadius: '16px', marginBottom: '24px' }}>
           <h3 style={{ color: 'var(--text-primary)', fontWeight: '600', marginBottom: '16px' }}>📱 Escanear con Cámara</h3>
+          <p style={{ fontSize: '0.9rem', color: '#718096', marginBottom: '16px' }}>
+            Perfecto para usar desde tu celular. La cámara se activará automáticamente.
+          </p>
           <button 
             type="button"
             className="nav-button"
             onClick={() => setIsCameraActive(!isCameraActive)}
             style={{ 
               background: isCameraActive ? '#dc3545' : 'var(--secondary-gradient)',
-              marginBottom: '10px'
+              marginBottom: '10px',
+              fontSize: '1.1rem',
+              padding: '12px 24px'
             }}
           >
             {isCameraActive ? '🚫 Detener Cámara' : '📷 Activar Cámara'}
@@ -280,7 +337,21 @@ const TicketScanner = () => {
 
           {isCameraActive && (
             <div style={{ marginTop: '20px' }}>
-              <div id="qr-reader" style={{ width: '100%' }} />
+              <div id="qr-reader" style={{ 
+                width: '100%', 
+                maxWidth: '400px', 
+                margin: '0 auto',
+                borderRadius: '12px',
+                overflow: 'hidden'
+              }} />
+              <p style={{ 
+                textAlign: 'center', 
+                marginTop: '10px', 
+                fontSize: '0.9rem', 
+                color: '#718096' 
+              }}>
+                📱 Apunta la cámara hacia el código QR
+              </p>
             </div>
           )}
         </div>
@@ -375,6 +446,14 @@ const TicketScanner = () => {
                   <strong>Creado:</strong>
                   <p>{new Date(result.ticket.created_at).toLocaleString('es-ES')}</p>
                 </div>
+                {result.uses_remaining !== undefined && (
+                  <div>
+                    <strong>Usos Restantes:</strong>
+                    <p style={{fontWeight: 'bold', color: result.uses_remaining > 0 ? '#38a169' : '#e53e3e'}}>
+                      {result.uses_remaining} de {result.ticket.quantity}
+                    </p>
+                  </div>
+                )}
                 <div>
                   <strong>Estado:</strong>
                   <span className={`status-badge ${result.ticket.status === 'Válido' ? 'status-valid' : 'status-redeemed'}`}>
@@ -391,7 +470,7 @@ const TicketScanner = () => {
                 disabled={loading}
                 style={{ marginTop: '20px', background: 'var(--success-gradient)' }}
               >
-                {loading ? 'Canjeando...' : '✅ Canjear Ticket'}
+                {loading ? 'Canjeando...' : `✅ Canjear ${result.qr_id ? 'QR' : 'Ticket'}`}
               </button>
             )}
 

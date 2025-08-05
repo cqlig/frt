@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import QRCode from 'qrcode.react';
 import html2canvas from 'html2canvas';
+import * as XLSX from 'xlsx';
 
 const TicketList = () => {
   const [tickets, setTickets] = useState([]);
@@ -13,7 +14,6 @@ const TicketList = () => {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
-
   useEffect(() => {
     fetchTickets();
   }, []);
@@ -31,6 +31,8 @@ const TicketList = () => {
       setLoading(false);
     }
   };
+
+
 
   useEffect(() => {
     let filtered = tickets;
@@ -60,6 +62,7 @@ const TicketList = () => {
       await axios.delete(`/api/tickets/${ticketId}`);
       setTickets(prevTickets => prevTickets.filter(ticket => ticket.id !== ticketId));
       setShowDeleteConfirm(null);
+      if (selectedTicket && selectedTicket.id === ticketId) setSelectedTicket(null);
     } catch (error) {
       console.error('Error deleting ticket:', error);
       alert('Error al eliminar el ticket');
@@ -156,9 +159,79 @@ const TicketList = () => {
     );
   }
 
+  // Calcular el total de fondos ganados
+  const totalGanado = filteredTickets.reduce((sum, ticket) => {
+    if (typeof ticket.total === 'number' && ticket.status === 'Válido') {
+      return sum + ticket.total;
+    }
+    return sum;
+  }, 0);
+
+  // Calcular el total de entradas/personas vendidas
+  const totalEntradas = filteredTickets.reduce((sum, ticket) => {
+    if (typeof ticket.quantity === 'number' && ticket.status === 'Válido') {
+      return sum + ticket.quantity;
+    }
+    return sum;
+  }, 0);
+
+  // Función para exportar a Excel con totales
+  const exportToExcel = () => {
+    const data = filteredTickets.map(ticket => ({
+      ID: ticket.id,
+      Comprador: ticket.buyer_name,
+      Email: ticket.buyer_email,
+      Evento: ticket.event_name,
+      Cantidad: ticket.quantity,
+      'Precio Unitario': ticket.price,
+      Total: ticket.total,
+      Estado: ticket.status,
+      'Fecha de Creación': ticket.created_at ? new Date(ticket.created_at).toLocaleString('es-ES') : ''
+    }));
+
+    // Agregar fila de totales
+    const totalRow = {
+      ID: 'TOTALES',
+      Comprador: '',
+      Email: '',
+      Evento: '',
+      Cantidad: filteredTickets.reduce((sum, t) => sum + (t.quantity || 0), 0),
+      'Precio Unitario': '',
+      Total: filteredTickets.reduce((sum, t) => sum + (t.total || 0), 0),
+      Estado: '',
+      'Fecha de Creación': ''
+    };
+    data.push(totalRow);
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Entradas');
+    XLSX.writeFile(workbook, 'EntradasVendidas.xlsx');
+  };
+
   return (
     <div>
+      {/* Panel de Estadísticas */}
+
+
       <div className="form-container">
+        <button
+          onClick={exportToExcel}
+          style={{
+            background: 'linear-gradient(90deg, #38a169 0%, #48bb78 100%)',
+            color: 'white',
+            fontWeight: 'bold',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '10px 24px',
+            marginBottom: '15px',
+            fontSize: '1rem',
+            cursor: 'pointer',
+            float: 'right'
+          }}
+        >
+          ⬇️ Exportar a Excel
+        </button>
         <h2>📋 Lista de Entradas ({filteredTickets.length} de {tickets.length})</h2>
 
         <div style={{ marginBottom: '30px' }}>
@@ -329,22 +402,17 @@ const TicketList = () => {
                 onClick={() => setSelectedTicket(null)}
                 className="nav-button"
                 style={{ 
-                  background: 'var(--secondary-gradient)',
-                  minWidth: '200px',
-                  height: '45px',
-                  fontSize: '1rem',
-                  padding: '0 25px',
-                  borderRadius: '12px',
-                  fontWeight: '500'
+                  background: 'var(--danger-gradient)',
                 }}
               >
-                ❌ Cerrar
+                Cerrar
               </button>
             </div>
           </div>
         </div>
       )}
 
+      {/* Modal de confirmación de eliminación */}
       {showDeleteConfirm && (
         <div style={{
           position: 'fixed',
@@ -356,7 +424,7 @@ const TicketList = () => {
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          zIndex: 1001,
+          zIndex: 1000,
           padding: '20px'
         }}>
           <div style={{
@@ -367,38 +435,34 @@ const TicketList = () => {
             width: '100%',
             textAlign: 'center'
           }}>
-            <h3 style={{ marginBottom: '20px', color: 'var(--text-primary)' }}>🗑️ Confirmar Eliminación</h3>
-
-            <p style={{ marginBottom: '10px', color: 'var(--text-secondary)' }}>
-              ¿Estás seguro de que quieres eliminar este ticket?
+            <h3 style={{ marginBottom: '20px', color: '#e53e3e' }}>⚠️ Confirmar Eliminación</h3>
+            <p style={{ marginBottom: '20px', fontSize: '1rem' }}>
+              ¿Estás seguro de que quieres eliminar la entrada de <strong>{showDeleteConfirm.buyer_name}</strong>?
             </p>
-            <p style={{ marginBottom: '20px', fontWeight: 'bold', color: 'var(--text-primary)' }}>
-              {showDeleteConfirm.buyer_name} - {showDeleteConfirm.event_name}
+            <p style={{ marginBottom: '25px', fontSize: '0.9rem', color: '#718096' }}>
+              Esta acción no se puede deshacer y eliminará todos los QRs asociados.
             </p>
-            <p style={{ marginBottom: '30px', fontSize: '14px', color: 'var(--danger-gradient)', fontWeight: '600' }}>
-              ⚠️ Esta acción no se puede deshacer
-            </p>
-
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-              <button 
-                onClick={() => setShowDeleteConfirm(null)}
-                className="nav-button"
-                style={{ 
-                  background: 'var(--text-light)',
-                  flex: '1'
-                }}
-              >
-                ❌ Cancelar
-              </button>
+            
+            <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap' }}>
               <button 
                 onClick={() => deleteTicket(showDeleteConfirm.id)}
                 className="nav-button"
                 style={{ 
                   background: 'var(--danger-gradient)',
-                  flex: '1'
+                  minWidth: '120px'
                 }}
               >
                 🗑️ Eliminar
+              </button>
+              <button 
+                onClick={() => setShowDeleteConfirm(null)}
+                className="nav-button"
+                style={{ 
+                  background: 'var(--secondary-gradient)',
+                  minWidth: '120px'
+                }}
+              >
+                Cancelar
               </button>
             </div>
           </div>
