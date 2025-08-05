@@ -159,21 +159,7 @@ const TicketList = () => {
     );
   }
 
-  // Calcular el total de fondos ganados
-  const totalGanado = filteredTickets.reduce((sum, ticket) => {
-    if (typeof ticket.total === 'number' && ticket.status === 'Válido') {
-      return sum + ticket.total;
-    }
-    return sum;
-  }, 0);
 
-  // Calcular el total de entradas/personas vendidas
-  const totalEntradas = filteredTickets.reduce((sum, ticket) => {
-    if (typeof ticket.quantity === 'number' && ticket.status === 'Válido') {
-      return sum + ticket.quantity;
-    }
-    return sum;
-  }, 0);
 
   // Función para exportar a Excel con totales
   const exportToExcel = () => {
