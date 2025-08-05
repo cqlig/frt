@@ -5,9 +5,11 @@ import CreateTicket from './components/CreateTicket';
 import TicketList from './components/TicketList';
 import TicketScanner from './components/TicketScanner';
 import TicketViewer from './components/TicketViewer';
+import StatsDashboard from './components/StatsDashboard';
+import API_BASE_URL from './config';
 
-// API base URL - use REACT_APP_API_URL
-axios.defaults.baseURL = process.env.REACT_APP_API_URL || '';
+// API base URL
+axios.defaults.baseURL = API_BASE_URL;
 
 function Navigation() {
   const location = useLocation();
@@ -32,6 +34,12 @@ function Navigation() {
       >
         Escanear Entrada
       </Link>
+      <Link 
+        to="/dashboard" 
+        className={`nav-button ${location.pathname === '/dashboard' ? 'active' : ''}`}
+      >
+        📊 Dashboard
+      </Link>
     </nav>
   );
 }
@@ -53,6 +61,7 @@ function App() {
             <Route path="/tickets" element={<TicketList />} />
             <Route path="/scanner" element={<TicketScanner />} />
             <Route path="/ticket/:id" element={<TicketViewer />} />
+            <Route path="/dashboard" element={<StatsDashboard />} />
           </Routes>
         </div>
 
